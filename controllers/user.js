@@ -56,30 +56,26 @@ export const register = TryCatch(async (req, res) => {
   }
 
   const hashPassword = await bcrypt.hash(password, 10);
-
-  const verfiyToken = crypto.randomBytes(32).toString("hex");
- 
-
-  console.log("Verification Token:", verfiyToken);
-  const verfiyKey = `verify:${verfiyToken}`;
-
-  const datatoStore = JSON.stringify({
+  const otp = Math.floor(100000 + Math.random() * 90000).toString();
+  const registerKey = `register:${email}`;
+  const dataToStore = JSON.stringify({
     name,
     email,
     password: hashPassword,
+    otp,
   });
 
-  await redisClient.set(verfiyKey, datatoStore, { EX: 300 });
+  await redisClient.set(registerKey, dataToStore, { EX: 600 });
 
-  const subject = "Verify your email for acoount creation";
-  const html = getVerifyEmailHtml({ email, token: verfiyToken });
+  const subject = "OTP for account verification";
+  const html = getOtpHtml({ email, otp });
   await sendMail({ email, subject, html });
 
   await redisClient.set(rateLimitKey, "true", { EX: 60 });
 
   res.json({
     message:
-      "If your email is valid , a verification link has been sent it will expire in 5 minutes",
+      "Registration OTP has been sent to your email. Please verify to continue.",
   });
 });
 
@@ -130,6 +126,52 @@ export const verifyuser = TryCatch(async (req, res) => {
       name: newUser.name,
       email: newUser.email,
     },
+  });
+});
+
+export const verifyRegisterOtp = TryCatch(async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({
+      message: "Please provide email and OTP",
+    });
+  }
+
+  const registerKey = `register:${email}`;
+  const storedData = await redisClient.get(registerKey);
+
+  if (!storedData) {
+    return res.status(400).json({
+      message: "OTP expired or registration not found",
+    });
+  }
+
+  const parsedData = JSON.parse(storedData);
+  if (parsedData.otp !== otp.toString()) {
+    return res.status(400).json({
+      message: "Invalid OTP",
+    });
+  }
+
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    await redisClient.del(registerKey);
+    return res.status(400).json({
+      message: "User already exists",
+    });
+  }
+
+  await redisClient.del(registerKey);
+
+  await User.create({
+    name: parsedData.name,
+    email: parsedData.email,
+    password: parsedData.password,
+  });
+
+  res.status(200).json({
+    message: "Registration verified successfully. Please login.",
   });
 });
 
@@ -187,7 +229,7 @@ export const loginUser = TryCatch(async (req, res) => {
   const otpKey = `otp:${email}`;
 
   await redisClient.set(otpKey, JSON.stringify(otp), {
-    EX: 300,
+    EX: 600,
   });
 
   const subject = "Otp for verification";
@@ -197,15 +239,15 @@ export const loginUser = TryCatch(async (req, res) => {
   await redisClient.set(rateLimitKey, "true", { EX: 60 });
   res.json({
     message:
-      "If your email is valid then opt has been sent, It will be valid for 5 min",
+      "If your email is valid then opt has been sent, It will be valid for 10 min",
   });
 });
 
 export const verifyOtp = TryCatch(async (req, res) => {
   const { email, otp } = req.body;
-  console.log("verifyOtp body:", req.body);
+  
   if (!email || !otp) {
-    const baseResponse = { message: "Please provide aall details" };
+    const baseResponse = { message: "Please provide all details" };
     if (process.env.NODE_ENV !== "production") {
       baseResponse.received = req.body;
     }
@@ -223,9 +265,9 @@ export const verifyOtp = TryCatch(async (req, res) => {
 
   const storedOtp = JSON.parse(storeOtpString);
 
-  if (storedOtp != otp) {
+  if (storedOtp !== otp.toString()) {
     return res.status(400).json({
-      message: "Invalid Otp",
+      message: "Invalid OTP",
     });
   }
 

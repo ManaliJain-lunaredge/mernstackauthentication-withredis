@@ -12,18 +12,20 @@ export const generateToken = async (id, res) => {
 
     const refreshTokenKey = `refresh_token:${id}`
     await redisClient.setEx(refreshTokenKey, 7 * 24 * 60 * 60, refreshToken)
+    // For local development use SameSite 'lax' and secure=false so cookies
+    // are accepted by browsers when frontend is on a different origin.
     res.cookie("accessToken", accessToken, {
         httpOnly: true,
-        //secure:false,
-        sameSite: "strict",
-        maxAge: 1 * 60 * 1000
+        secure: false,
+        sameSite: "lax",
+        maxAge: 15 * 60 * 1000
     })
 
     res.cookie("refreshToken", refreshToken, {
         maxAge: 7 * 24 * 60 * 60 * 1000,
         httpOnly: true,
-        sameSite: "strict",
-        //secure:false,
+        sameSite: "lax",
+        secure: false,
     })
     return { accessToken, refreshToken }
 }
@@ -42,14 +44,15 @@ export const verifyRefreshToken = async (refreshToken) => {
     }
 }
 
-export const generateAccessToken=async(id,res)=>{
- const accesssToken=jwt.sign({id},process.env.JWT_SCERET,{expiresIn:"1m"})
-   res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        //secure:false,
-        sameSite: "strict",
-        maxAge: 1 * 60 * 1000
+export const generateAccessToken = async (id, res) => {
+    const accessToken = jwt.sign({ id }, process.env.JWT_SCERET, {
+        expiresIn: "1m",
     })
 
-    
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: false,
+        maxAge: 1 * 60 * 1000,
+    })
 }
