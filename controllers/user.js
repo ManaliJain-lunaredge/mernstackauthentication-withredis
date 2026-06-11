@@ -276,7 +276,7 @@ export const verifyOtp = TryCatch(async (req, res) => {
   let user = await User.findOne({ email });
   const tokenData = await generateToken(user._id, res);
   res.status(200).json({
-    message: `Welcome`,
+    message: `  Welcome  ${user.name}`,
     user,
   });
 });

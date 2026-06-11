@@ -20,6 +20,11 @@ app.use(cors({
 const redisUrl=process.env.REDIS_URL
 const PORT = process.env.PORT || 5000
 const MONGO_URL = process.env.MONGO_URL
+
+
+mongoose.connect(process.env.MONGO_URL)
+  .then(() => console.log("Mongo connected"))
+  .catch(err => console.log(err));
 app.use(express.json());
 app.use(cookieParser())
 app.use("/api",userRoutes)
